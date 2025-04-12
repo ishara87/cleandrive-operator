@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Webcam from 'react-webcam';
 import Tesseract from 'tesseract.js';
