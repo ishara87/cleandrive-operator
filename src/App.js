@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import Webcam from 'react-webcam';
+import Tesseract from 'tesseract.js';
 
 export default function OperatorApp() {
   const [pin, setPin] = useState('');
@@ -8,6 +10,8 @@ export default function OperatorApp() {
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState('');
   const [taskQueue, setTaskQueue] = useState([]);
+  const [showWebcam, setShowWebcam] = useState(false);
+  const webcamRef = React.useRef(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -44,11 +48,11 @@ export default function OperatorApp() {
       .eq('license_plate', licensePlate)
       .single();
 
-    await supabase.from('vehicle_visits').insert({
+    const { data: visit } = await supabase.from('vehicle_visits').insert({
       vehicle_id: foundVehicle.id,
       service_id: selectedService,
       status: 'queued',
-    });
+    }).select().single();
 
     setLicensePlate('');
     setSelectedService('');
@@ -60,6 +64,14 @@ export default function OperatorApp() {
     const nextStatus = statusFlow[statusFlow.indexOf(currentStatus) + 1] || 'done';
     await supabase.from('vehicle_visits').update({ status: nextStatus }).eq('id', id);
     fetchQueue();
+  };
+
+  const captureAndReadPlate = async () => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    setShowWebcam(false);
+    const result = await Tesseract.recognize(imageSrc, 'eng');
+    const extractedText = result.data.text.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    setLicensePlate(extractedText);
   };
 
   if (!isLoggedIn) {
@@ -90,6 +102,17 @@ export default function OperatorApp() {
         onChange={(e) => setLicensePlate(e.target.value)}
         className="border p-2 mb-2 w-full"
       />
+      <button onClick={() => setShowWebcam(!showWebcam)} className="bg-gray-500 text-white px-4 py-2 rounded w-full mb-2">
+        {showWebcam ? 'Close Camera' : 'Scan Plate'}
+      </button>
+      {showWebcam && (
+        <div className="mb-4">
+          <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="w-full rounded" />
+          <button onClick={captureAndReadPlate} className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded w-full">
+            Capture & Read Plate
+          </button>
+        </div>
+      )}
       <select
         value={selectedService}
         onChange={(e) => setSelectedService(e.target.value)}
